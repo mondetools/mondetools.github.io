@@ -1,5 +1,6 @@
 // Shared helpers
 
+const API_BASE="https://nebulakit-code.onrender.com";
 const esc=s=>String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const EPOCH=1420070400000n;
 class NetworkError extends Error{}
@@ -16,7 +17,7 @@ const snowMs=id=>Number((BigInt(id)>>22n)+EPOCH);
 const needId=(s,what)=>{s=String(s).trim();if(!/^\d{15,22}$/.test(s))throw new Error(`That doesn't look like a ${what}. IDs are 15–22 digits.`);return s};
 async function api(path){
   let r;
-  try{r=await fetch(path,{headers:{Accept:"application/json"}})}
+  try{r=await fetch(`${API_BASE}${path}`,{credentials:"include",headers:{Accept:"application/json"}})}
   catch{throw new NetworkError("Couldn't reach the lookup service. Check that the NebulaKit Web Service is running, then try again.")}
   let j;
   try{j=await r.json()}

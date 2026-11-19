@@ -171,7 +171,7 @@ function open(id){
   t.after();
 }
 async function siteApi(path,options={}){
-  const response=await fetch(path,{credentials:"same-origin",...options});
+  const response=await fetch(`${API_BASE}${path}`,{credentials:"include",...options});
   const data=await response.json().catch(()=>({}));
   if(!response.ok)throw new Error(data.error||"Request failed ("+response.status+").");
   return data;
@@ -185,7 +185,7 @@ function openAccount(message=""){
   history.replaceState(null,"","#account");
   if(!accountState.signed_in){
     $("#stage").innerHTML=siteHeading("Your NebulaKit account","Sign in with Discord to unlock your personal tools and saved workspace.")+
-      `<section class="panel site-panel"><p class="note">${esc(message||"Sign-in is optional. Public tools work without an account.")}</p><a class="discord-signin" href="/auth/discord">Continue with Discord</a><p class="note account-privacy">NebulaKit requests your Discord account identity only. It does not request access to your servers or messages.</p></section>`;
+      `<section class="panel site-panel"><p class="note">${esc(message||"Sign-in is optional. Public tools work without an account.")}</p><a class="discord-signin" href="${API_BASE}/auth/discord">Continue with Discord</a><p class="note account-privacy">NebulaKit requests your Discord account identity only. It does not request access to your servers or messages.</p></section>`;
     return;
   }
   $("#stage").innerHTML=siteHeading("Your account","Your private tools and saved workspace.")+
@@ -412,7 +412,7 @@ async function renderAdminInbox(){
 }
 async function refreshAccount(){
   try{
-    const r=await fetch("/api/auth/me");
+    const r=await fetch(`${API_BASE}/api/auth/me`,{credentials:"include"});
     if(!r.ok)throw new Error("Account status could not be loaded.");
     accountState=await r.json();
     if(location.hash==="#account")openAccount();

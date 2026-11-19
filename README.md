@@ -8,4 +8,4 @@ The Pages workflow deploys this repository after GitHub Pages is set to use **Gi
 
 ## Backend requirement
 
-GitHub Pages serves static files and does not run the Python API. The page's profile and server lookups, Discord sign-in, account history, and support tickets need the private Python backend on the same site origin (typically through a reverse proxy). Browser-only utilities work without that backend. Do not add `.env`, `monde.sqlite3`, or server credentials to this repository.
+GitHub Pages serves static files and does not run the Python API. This site sends API requests to `https://nebulakit-code.onrender.com`; the backend must be running for profile and server lookups, Discord sign-in, account history, and support tickets. Browser-only utilities work without the backend. Do not add `.env`, `monde.sqlite3`, or server credentials to this repository.
