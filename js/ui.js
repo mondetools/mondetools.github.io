@@ -113,7 +113,7 @@ function openHome(){
   ];
   $("#stage").innerHTML=`<div class="landing">
     <section class="hero landing-hero"><div class="orb o1"></div><div class="orb o2"></div>
-      <div class="hero-eye" aria-hidden="true"><svg viewBox="0 0 300 160" focusable="false"><path class="eye-contour" d="M11 80c36-43 90-65 139-65s103 22 139 65c-36 43-90 65-139 65S47 123 11 80Z"/><path class="eye-upper" d="M22 77c34-32 78-49 128-49s94 17 128 49"/><path class="eye-lower" d="M22 83c34 32 78 49 128 49s94-17 128-49"/><path class="eye-highlight" d="M43 70c31-24 68-36 107-36s76 12 107 36"/></svg><span class="eye-iris"><img src="/static/nebulakit-mark.svg" alt=""></span><span class="eye-glint"></span></div>
+      <div class="hero-eye" aria-hidden="true"><svg viewBox="0 0 300 160" focusable="false"><path class="eye-contour" d="M11 80c36-43 90-65 139-65s103 22 139 65c-36 43-90 65-139 65S47 123 11 80Z"/><path class="eye-upper" d="M22 77c34-32 78-49 128-49s94 17 128 49"/><path class="eye-lower" d="M22 83c34 32 78 49 128 49s94-17 128-49"/><path class="eye-highlight" d="M43 70c31-24 68-36 107-36s76 12 107 36"/></svg><span class="eye-iris"><img src="./nebulakit-mark.svg" alt=""></span><span class="eye-glint"></span></div>
       <span class="pill">MONDE TOOLS · DISCORD TOOLKIT</span>
       <h1 class="hero-h">Your Discord toolkit, <span>in one place.</span></h1>
       <p class="sub">Look up public profiles and servers, decode Discord data, and build developer tools from one simple workspace.</p>
