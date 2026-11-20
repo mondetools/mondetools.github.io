@@ -253,16 +253,47 @@ async function historyAfter(){
     list.innerHTML=rows.length?`<div class="history-list">${rows.map(row=>`<details class="history-item"><summary><span>${esc(row.tool)}</span><time>${esc(fmtT(row.created_at))}</time></summary><h4>Inputs</h4><pre>${esc(JSON.stringify(row.inputs,null,2))}</pre><h4>Result snapshot</h4><pre>${esc(row.result)}</pre></details>`).join("")}</div>`:'<p class="note">No saved history yet.</p>';
   }catch(error){status.textContent=error.message}
 }
+let turnstileScriptPromise;
+function loadTurnstileApi(){
+  if(window.turnstile)return Promise.resolve(window.turnstile);
+  if(!turnstileScriptPromise){
+    turnstileScriptPromise=new Promise((resolve,reject)=>{
+      const script=document.createElement("script");
+      script.src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+      script.async=true;script.defer=true;
+      script.onload=()=>window.turnstile?resolve(window.turnstile):reject(new Error("CAPTCHA did not start. Reload the page and try again."));
+      script.onerror=()=>reject(new Error("Could not load CAPTCHA. Check your connection and try again."));
+      document.head.append(script);
+    });
+  }
+  return turnstileScriptPromise;
+}
 function openHelp(){
   $(".shell").classList.remove("home");history.replaceState(null,"","#help");
   $("#stage").innerHTML=siteHeading("Help","Send a message to NebulaKit support or return to an existing ticket.")+
     `<div class="two help-layout"><section class="panel site-panel"><h3 class="ch">Contact support</h3><p class="note">You’ll receive a private ticket code. Keep it safe; anyone with the code can read and reply to the ticket.</p>
-      <form id="help-form" class="form"><label>Category<select name="category"><option>Bug</option><option>Account</option><option>Feature request</option><option>Other</option></select></label><label>Subject<input name="subject" required minlength="3" maxlength="120"></label><label>Message<textarea name="message" rows="5" required minlength="10" maxlength="10000"></textarea></label><p class="note ticket-disclosure">Your subject and message will be sent to NebulaKit support and its configured Discord notification channel. Don’t include passwords, tokens, or other secrets.</p><button>Send help request</button></form><p id="help-status" role="status" class="note"></p><div id="new-ticket"></div>
+      <form id="help-form" class="form"><label>Category<select name="category"><option>Bug</option><option>Account</option><option>Feature request</option><option>Other</option></select></label><label>Subject<input name="subject" required minlength="3" maxlength="120"></label><label>Message<textarea name="message" rows="5" required minlength="10" maxlength="10000"></textarea></label><p class="note ticket-disclosure">Your subject and message will be sent to NebulaKit support and its configured Discord notification channel. Don’t include passwords, tokens, or other secrets.</p><div id="help-captcha" aria-label="Spam protection"></div><button disabled>Send help request</button></form><p id="help-status" role="status" class="note"></p><div id="new-ticket"></div>
     </section><section class="panel site-panel"><h3 class="ch">Open a ticket</h3><form id="ticket-open" class="form"><label>Ticket ID<input name="id" required autocomplete="off"></label><label>Private access code<input name="key" required autocomplete="off"></label><button>Open ticket</button></form></section></div>`;
-  $("#help-form").onsubmit=async event=>{
-    event.preventDefault();const status=$("#help-status"),button=event.currentTarget.querySelector("button");button.disabled=true;
+  const helpForm=$("#help-form"),helpStatus=$("#help-status"),helpButton=helpForm.querySelector("button");
+  const captcha={widget:null,ready:false};
+  siteApi("/api/captcha/site-key").then(async config=>{
+    await loadTurnstileApi();
+    if(!document.body.contains(helpForm))return;
+    captcha.widget=window.turnstile.render("#help-captcha",{
+      sitekey:config.site_key,
+      action:"support_ticket",
+      callback:()=>{captcha.ready=true;helpButton.disabled=false;helpStatus.textContent=""},
+      "expired-callback":()=>{captcha.ready=false;helpButton.disabled=true;helpStatus.textContent="CAPTCHA expired. Please complete it again."},
+      "error-callback":()=>{captcha.ready=false;helpButton.disabled=true;helpStatus.textContent="CAPTCHA could not load. Reload the page and try again."}
+    });
+  }).catch(error=>{helpStatus.textContent=error.message;helpButton.disabled=true});
+  helpForm.onsubmit=async event=>{
+    event.preventDefault();const status=helpStatus,button=helpButton;button.disabled=true;
+    if(!captcha.ready||captcha.widget===null){status.textContent="Complete the CAPTCHA before sending your request.";return}
     try{
-      const ticket=await siteApi("/api/tickets",jsonOptions(Object.fromEntries(new FormData(event.currentTarget))));
+      const data=Object.fromEntries(new FormData(event.currentTarget));
+      data.captcha_token=window.turnstile.getResponse(captcha.widget);
+      const ticket=await siteApi("/api/tickets",jsonOptions(data));
       try{sessionStorage.setItem("monde-ticket-key:"+ticket.id,ticket.key)}catch{}
       const url=location.href.split("#")[0]+`#ticket=${encodeURIComponent(ticket.id)}&key=${encodeURIComponent(ticket.key)}`;
       $("#new-ticket").innerHTML=`<section class="ticket-created"><h3>Request received</h3><p>Your ticket ID and private access code are shown below once. Save them to check for replies.</p><p><b>Ticket ID</b><br><code>${esc(ticket.id)}</code></p><p><b>Private access code</b><br><code class="break-code">${esc(ticket.key)}</code></p><p><a href="${esc(url)}">Save private ticket link</a></p><button type="button" class="mini" data-copy="${esc(ticket.key)}">Copy access code</button></section>`;
@@ -273,7 +304,7 @@ function openHelp(){
           :"Ticket created, but the Discord notification could not be delivered. Your ticket is saved in the support inbox. Keep your ticket code private.";
       event.currentTarget.reset();
     }catch(error){status.textContent=error.message}
-    finally{button.disabled=false}
+    finally{captcha.ready=false;window.turnstile.reset(captcha.widget);button.disabled=true}
   };
   $("#ticket-open").onsubmit=event=>{
     event.preventDefault();const data=Object.fromEntries(new FormData(event.currentTarget));
