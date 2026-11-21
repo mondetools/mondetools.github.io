@@ -28,6 +28,10 @@ const T=[
  {id:"json-format",cat:"Developer",title:"JSON formatter",desc:"Validate JSON, then format it for reading or compact it for sharing. Its inputs and results are saved only if you enable account history.",f:[{n:"json",l:"JSON input",t:"textarea",p:"Paste JSON here"},{n:"mode",l:"Output format",t:"select",s:["Readable (2 spaces)","Minified"]}],run:jsonFormat,b:"Format JSON"},
  {id:"snow-timeline",cat:"Utilities",title:"Snowflake timeline",desc:"Order supplied Discord IDs by creation time and calculate the time gaps between them. Runs locally.",f:[{n:"ids",l:"Discord IDs (2–100)",t:"textarea",p:"One user, server, channel or message ID per line"}],run:snowTimeline,b:"Build timeline"},
  {id:"message-timeline",cat:"Utilities",title:"Message link timeline",desc:"Sort supplied Discord message links chronologically and show the time between linked messages. Links are parsed locally, not opened.",f:[{n:"links",l:"Message links (2–50)",t:"textarea",p:"One Discord message link per line"}],run:messageTimeline,b:"Analyze timeline"},
+ {id:"ioc-extractor",cat:"OSINT",title:"IOC extractor",desc:"Extract URLs, domains, email addresses, IPv4 addresses and file hashes from pasted text. Analysis stays in this browser and is never saved to account history.",f:[{n:"text",l:"Text to inspect (up to 200 KB)",t:"textarea",p:"Paste notes, logs or threat indicators"}],run:iocExtractor,b:"Extract indicators",noHistory:1},
+ {id:"url-analyzer",cat:"OSINT",title:"URL analyzer",desc:"Inspect a URL for redirects, punycode, IP hosts, credentials and other review signals without opening or contacting it.",f:[{n:"url",l:"URL to inspect",p:"https://example.com/path?next=..."}],run:urlAnalyzer,b:"Analyze URL",noHistory:1},
+ {id:"indicator-defanger",cat:"OSINT",title:"Indicator defanger",desc:"Defang or refang URLs, domains and IPs for safe sharing in reports. Text is processed locally and not saved to account history.",f:[{n:"text",l:"Indicators or text",t:"textarea",p:"Paste URLs, domains or IP addresses"},{n:"mode",l:"Action",t:"select",s:["Defang for sharing","Refang for analysis"]}],run:indicatorDefanger,b:"Convert text",noHistory:1},
+ {id:"file-hash",cat:"OSINT",title:"Local file hash calculator",desc:"Calculate SHA-1, SHA-256 and SHA-512 fingerprints in your browser. The file is never uploaded or saved to account history.",f:[{n:"file",l:"Choose a file",t:"file"}],run:fileHash,b:"Calculate hashes",noHistory:1},
  {id:"snow",cat:"Utilities",title:"Snowflake decoder",desc:"Every Discord ID hides its creation time. Works for users, servers, channels and messages. Twitter IDs work too.",f:[{n:"kind",l:"Platform",t:"select",s:["Discord","Twitter"]},{n:"id",l:"ID",p:"80351110224678912",m:1}],run:snow,b:"Decode"},
  {id:"message-link",cat:"Utilities",title:"Message link parser",desc:"Break a Discord message link into server, channel and message IDs, with the message creation time.",f:[{n:"url",l:"Discord message link",p:"https://discord.com/channels/server/channel/message"}],run:messageLink,b:"Parse link"},
  {id:"extract",cat:"Utilities",title:"Reference extractor",desc:"Find Discord invites, mentions and IDs in pasted text. Runs locally in your browser; nothing is uploaded or checked.",f:[{n:"text",l:"Text to inspect (up to 100 KB)",t:"textarea",p:"Paste text containing Discord references"}],run:extract,b:"Extract references"},
@@ -52,7 +56,7 @@ function openForm(id){
     try{
       const result=await t.run(v);
       $("#out").innerHTML=result;
-      if(accountState.signed_in&&accountState.history_enabled&&t.id!=="webhook"){
+      if(accountState.signed_in&&accountState.history_enabled&&t.id!=="webhook"&&!t.noHistory){
         try{await siteApi("/api/history",jsonOptions({tool:t.id,inputs:v,result}))}
         catch(error){$("#err").textContent="Lookup succeeded, but history could not be saved: "+error.message}
       }
@@ -61,7 +65,7 @@ function openForm(id){
     finally{btn.disabled=false;btn.textContent=label}
   };
 }
-const CC={Users:"#7c83ff",Servers:"#3ddbc0",Developer:"#ff7ab6",Utilities:"#ffb454"};
+const CC={Users:"#7c83ff",Servers:"#3ddbc0",Developer:"#ff7ab6",Utilities:"#ffb454",OSINT:"#c084fc"};
 const IC={
  profile:'<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 4-6 8-6s8 2 8 6"/>',
  "asset-link":'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/><path d="M12 3v6M21 12h-6"/>',
@@ -86,6 +90,10 @@ const IC={
  "message-link":'<path d="M10 14a4 4 0 005.7 0l3-3a4 4 0 00-5.7-5.7l-1 1"/><path d="M14 10a4 4 0 00-5.7 0l-3 3a4 4 0 005.7 5.7l1-1"/><path d="M12 2v2M22 12h-2M4 12H2"/>',
  "snow-timeline":'<path d="M4 19V5M4 19h17"/><path d="M7 15l4-4 3 2 6-7"/>',
  "message-timeline":'<circle cx="6" cy="7" r="2"/><circle cx="18" cy="17" r="2"/><path d="M8 7h8a2 2 0 012 2v6M16 17H8a2 2 0 01-2-2V9"/>',
+ "ioc-extractor":'<circle cx="10.5" cy="10.5" r="6.5"/><path d="M15.5 15.5L21 21M8 10.5h5M10.5 8v5"/>',
+ "url-analyzer":'<circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 010 18M12 3a15 15 0 000 18"/>',
+ "indicator-defanger":'<path d="M8 8l-5 4 5 4M16 8l5 4-5 4M14 5l-4 14"/>',
+ "file-hash":'<path d="M8 3H5a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-3M8 3v5h5M21 3l-9 9M15 3h6v6"/>',
  time:'<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>',
  perms:'<rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/>',
  "permissions-build":'<path d="M8 6h13M8 12h13M8 18h13"/><path d="M3 6l1 1 2-2M3 12l1 1 2-2M3 18l1 1 2-2"/>',
@@ -109,16 +117,17 @@ function openHome(){
     {cat:"Users",icon:"profile",desc:"Profiles, public IDs and account details."},
     {cat:"Servers",icon:"server",desc:"Invite lookups and public server details."},
     {cat:"Developer",icon:"embed",desc:"Embeds, permissions and bot setup."},
-    {cat:"Utilities",icon:"snow",desc:"Time, message links and ID helpers."}
+    {cat:"Utilities",icon:"snow",desc:"Time, message links and ID helpers."},
+    {cat:"OSINT",icon:"ioc-extractor",desc:"Review indicators and files locally."}
   ];
   $("#stage").innerHTML=`<div class="landing">
     <section class="hero landing-hero"><div class="orb o1"></div><div class="orb o2"></div>
       <div class="hero-eye" aria-hidden="true"><svg viewBox="0 0 300 160" focusable="false"><path class="eye-contour" d="M11 80c36-43 90-65 139-65s103 22 139 65c-36 43-90 65-139 65S47 123 11 80Z"/><path class="eye-upper" d="M22 77c34-32 78-49 128-49s94 17 128 49"/><path class="eye-lower" d="M22 83c34 32 78 49 128 49s94-17 128-49"/><path class="eye-highlight" d="M43 70c31-24 68-36 107-36s76 12 107 36"/></svg><span class="eye-iris"><img src="./nebulakit-mark.svg" alt=""></span><span class="eye-glint"></span></div>
       <span class="pill">MONDE TOOLS · DISCORD TOOLKIT</span>
       <h1 class="hero-h">Your Discord toolkit, <span>in one place.</span></h1>
-      <p class="sub">Look up public profiles and servers, decode Discord data, and build developer tools from one simple workspace.</p>
+      <p class="sub">Look up public Discord data, review OSINT indicators locally, decode IDs, and use developer tools in one workspace.</p>
       <form class="home-search" id="home-search"><span class="home-search-icon" aria-hidden="true">⌕</span><input id="home-q" type="search" aria-label="Search tools" placeholder="Search the tool directory"><button type="submit">Search <span aria-hidden="true">→</span></button></form>
-      <div class="home-actions"><a class="home-cta" href="#tools">Explore all tools <span aria-hidden="true">↗</span></a><span class="note">${tools.length} tools · 4 categories · Free to use</span></div>
+      <div class="home-actions"><a class="home-cta" href="#tools">Explore all tools <span aria-hidden="true">↗</span></a><span class="note">${tools.length} tools · 5 categories · Free to use</span></div>
       <div class="featured-heading"><span class="eyebrow">POPULAR STARTING POINTS</span><span class="note">Jump straight in</span></div>
       <div class="featured" aria-label="Popular tools">${["profile","server","embed"].map(id=>{const t=T.find(x=>x.id===id);return `<a class="feature" href="#${t.id}" style="--c:${CC[t.cat]}"><span class="ti"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${IC[t.id]}</svg></span><span><b>${t.title}</b><small>${t.cat} tool</small></span><span class="feature-go" aria-hidden="true">↗</span></a>`}).join("")}</div>
     </section>
@@ -133,12 +142,12 @@ function openTools(initialCategory="All",initialSearch=""){
   $(".shell").classList.add("tools-page");
   history.replaceState(null,"","#tools");
   setPrimaryNav("tools");
-  const categoryNames=["All","Users","Servers","Developer","Utilities"];
+  const categoryNames=["All","Users","Servers","Developer","Utilities","OSINT"];
   let cat=categoryNames.find(x=>x.toLowerCase()===String(initialCategory).toLowerCase())||"All";
   const tools=T.filter(t=>accountState.signed_in||!t.auth);
   $("#stage").innerHTML=`<div class="directory-page"><div class="directory-intro"><a class="directory-back" href="#home">← Home</a><span class="eyebrow">THE TOOLBOX</span><h1>Explore all tools</h1><p class="sub">Search the directory or narrow it down by category.</p></div>
-    <div class="finder" id="tool-directory"><div class="directory-heading"><div><span class="eyebrow">TOOL DIRECTORY</span><h2>Find what you need</h2></div><span class="note">${tools.length} tools · 4 categories</span></div><input id="q" type="search" placeholder="Search tools…  (press /)" aria-label="Search tools" autocomplete="off">
-    <div class="filters" id="flt">${["All","Users","Servers","Developer","Utilities"].map(c=>`<button type="button" class="fchip" data-c="${c}" aria-pressed="${c==="All"}">${c}</button>`).join("")}</div></div>
+    <div class="finder" id="tool-directory"><div class="directory-heading"><div><span class="eyebrow">TOOL DIRECTORY</span><h2>Find what you need</h2></div><span class="note">${tools.length} tools · 5 categories</span></div><input id="q" type="search" placeholder="Search tools…  (press /)" aria-label="Search tools" autocomplete="off">
+    <div class="filters" id="flt">${["All","Users","Servers","Developer","Utilities","OSINT"].map(c=>`<button type="button" class="fchip" data-c="${c}" aria-pressed="${c==="All"}">${c}</button>`).join("")}</div></div>
     <div class="tiles" id="tiles"></div>`;
   const draw=anim=>{
     const k=$("#q").value.trim().toLowerCase(),list=tools.filter(t=>(cat==="All"||t.cat===cat)&&(t.title+" "+t.desc).toLowerCase().includes(k));

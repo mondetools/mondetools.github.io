@@ -248,3 +248,101 @@ function markdownPreview(v){
   if(fenced)html.push(`<pre><code>${esc(code.join("\n"))}</code></pre>`);
   return `<section class="panel solo"><h2>Discord message preview</h2><p class="note">Common formatting is rendered locally. If you enabled account history, its inputs and results can be saved there. Links stay as text and are not opened.</p><div class="markdown-preview">${html.join("")}</div></section>`;
 }
+
+function iocExtractor(v){
+  const source=String(v.text||"");
+  if(source.length>200000)throw new Error("Keep the pasted text under 200 KB.");
+  const groups=new Map(),add=(kind,value)=>{
+    const normalized=value.toLowerCase(),values=groups.get(kind)||new Map();
+    if(!values.has(normalized))values.set(normalized,value);
+    groups.set(kind,values);
+  };
+  for(const match of source.matchAll(/\bhttps?:\/\/[^\s<>"']+/gi)){
+    const value=match[0].replace(/[),.!?;:]+$/g,"");
+    if(value)add("URLs",value);
+  }
+  for(const match of source.matchAll(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,63}\b/gi))add("Email addresses",match[0]);
+  for(const match of source.matchAll(/\b(?:[A-Z0-9](?:[A-Z0-9-]{0,61}[A-Z0-9])?\.)+[A-Z]{2,63}\b/gi)){
+    if(source[match.index-1]!=="@")add("Domains",match[0]);
+  }
+  for(const match of source.matchAll(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g)){
+    const parts=match[0].split(".").map(Number);
+    if(parts.every(part=>part>=0&&part<=255))add("IPv4 addresses",match[0]);
+  }
+  for(const match of source.matchAll(/\b(?:[a-f0-9]{32}|[a-f0-9]{40}|[a-f0-9]{64}|[a-f0-9]{128})\b/gi)){
+    const lengths={32:"MD5",40:"SHA-1",64:"SHA-256",128:"SHA-512"};
+    add(lengths[match[0].length]+" hashes",match[0]);
+  }
+  const found=[...groups].filter(([,values])=>values.size);
+  if(!found.length)return panel("No indicators found",'<p class="note">No supported URLs, domains, email addresses, IPv4 addresses or common file hashes were found. The pasted text stayed in this browser.</p>');
+  const count=found.reduce((total,[,values])=>total+values.size,0);
+  const rows=found.flatMap(([kind,values])=>[...values.values()].map(value=>`<tr><td>${esc(kind)}</td><td><code>${esc(value)}</code></td></tr>`));
+  const copied=found.flatMap(([kind,values])=>[...values.values()].map(value=>`${kind}: ${value}`)).join("\n");
+  return `<section class="panel solo"><h2>${count} indicator${count===1?"":"s"} found</h2><p class="note">Extracted locally. This tool does not check whether indicators are live or malicious.</p><div class="scroll"><table><thead><tr><th>Type</th><th>Value</th></tr></thead><tbody>${rows.join("")}</tbody></table></div><p><button type="button" class="mini" data-copy="${esc(copied)}">Copy indicators</button></p></section>`;
+}
+
+function urlAnalyzer(v){
+  let raw=String(v.url||"").trim();
+  if(!raw||raw.length>4096)throw new Error("Enter a URL under 4 KB.");
+  raw=raw.replace(/^hxxps:\/\//i,"https://").replace(/^hxxp:\/\//i,"http://").replace(/(?:\[\.\]|\(\.\)|\{\.\})/gi,".");
+  if(!/^[a-z][a-z0-9+.-]*:\/\//i.test(raw))raw="https://"+raw;
+  let url;
+  try{url=new URL(raw)}catch{throw new Error("Enter a valid URL or domain name.")}
+  if(!["http:","https:"].includes(url.protocol))throw new Error("Only HTTP and HTTPS URLs can be inspected.");
+  const host=url.hostname,plainHost=host.replace(/^\[|\]$/g,""),labels=plainHost.split("."),flags=[];
+  const ipv4=/^(?:\d{1,3}\.){3}\d{1,3}$/.test(plainHost)&&plainHost.split(".").every(part=>Number(part)<=255);
+  const ipv6=host.startsWith("[")&&host.endsWith("]");
+  if(url.username||url.password)flags.push("The URL includes user information before the hostname; verify which host the browser would reach.");
+  if(host.toLowerCase().split(".").some(label=>label.startsWith("xn--")))flags.push("The hostname contains punycode. Check for lookalike characters.");
+  if(ipv4||ipv6)flags.push("The host is an IP address rather than a domain name.");
+  if(url.port&&!["80","443"].includes(url.port))flags.push("The URL uses a nonstandard port.");
+  if(labels.length>=5)flags.push("The hostname has many subdomains; read it from right to left to identify the registered-looking suffix.");
+  if(url.protocol==="http:")flags.push("The URL uses HTTP without transport encryption.");
+  const redirectKeys=new Set(["redirect","redirect_uri","return","return_to","next","continue","dest","destination","target","url","u"]);
+  const redirects=[...url.searchParams].filter(([key])=>redirectKeys.has(key.toLowerCase()));
+  if(redirects.length)flags.push("The query contains a parameter commonly used to pass a redirect destination.");
+  const flagHtml=flags.length?`<ul>${flags.map(flag=>`<li>${esc(flag)}</li>`).join("")}</ul>`:'<p class="note">No common structural warning signs were detected. That does not establish that the URL is safe.</p>';
+  const query=[...url.searchParams].map(([key,value])=>`<tr><td><code>${esc(key)}</code></td><td><code>${esc(value||"(empty)")}</code></td></tr>`).join("");
+  const redirectRows=redirects.map(([key,value])=>`<tr><td>${esc(key)}</td><td><code>${esc(value)}</code></td></tr>`).join("");
+  const parts=[
+    ["Protocol",url.protocol],
+    ["Hostname",host],
+    ["Port",url.port||"Default"],
+    ["Path",url.pathname||"/"],
+    ["Fragment",url.hash||"None"],
+    ["Credentials in URL",url.username||url.password?"Present":"None"]
+  ];
+  return `<section class="panel solo"><h2>URL structure</h2><p class="note">Parsed locally. The URL was not opened, resolved, or sent to a lookup service.</p>${dl(parts.map(([key,value])=>[esc(key),`<code>${esc(value)}</code>`]))}<p><button type="button" class="mini" data-copy="${esc(url.href)}">Copy normalized URL</button></p></section><section class="panel solo"><h2>Review signals</h2>${flagHtml}</section>${redirectRows?`<section class="panel solo"><h2>Possible redirect parameters</h2><div class="scroll"><table><thead><tr><th>Parameter</th><th>Value</th></tr></thead><tbody>${redirectRows}</tbody></table></div></section>`:""}${query?`<section class="panel solo"><h2>Query parameters</h2><div class="scroll"><table><thead><tr><th>Name</th><th>Value</th></tr></thead><tbody>${query}</tbody></table></div></section>`:""}`;
+}
+
+function indicatorDefanger(v){
+  const source=String(v.text||"");
+  if(source.length>200000)throw new Error("Keep the pasted text under 200 KB.");
+  let output=source;
+  if(v.mode==="Refang for analysis"){
+    output=output.replace(/\bhxxps:\/\//gi,"https://").replace(/\bhxxp:\/\//gi,"http://")
+      .replace(/(?:\[\.\]|\(\.\)|\{\.\}|\[dot\]|\(dot\))/gi,".");
+  }else{
+    output=output.replace(/\bhttps?:\/\/[^\s<>"']+/gi,raw=>{
+      const suffix=(raw.match(/[),.!?;:]+$/)||[""])[0],core=raw.slice(0,raw.length-suffix.length);
+      return core.replace(/^https?/i,scheme=>scheme.toLowerCase()==="https"?"hxxps":"hxxp").replace(/\./g,"[.]")+suffix;
+    });
+    output=output.replace(/\b(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}\b/gi,domain=>domain.replace(/\./g,"[.]"));
+    output=output.replace(/\b(?:\d{1,3}\.){3}\d{1,3}\b/g,address=>address.replace(/\./g,"[.]"));
+  }
+  return `<section class="panel solo"><h2>${v.mode==="Refang for analysis"?"Refanged text":"Defanged text"}</h2><p class="note">Converted locally. Review the result before sharing or opening indicators.</p><pre>${esc(output)}</pre><button type="button" class="mini" data-copy="${esc(output)}">Copy converted text</button></section>`;
+}
+
+async function fileHash(v){
+  const file=v.file;
+  if(!file||typeof file.arrayBuffer!=="function")throw new Error("Choose a file to calculate its hashes.");
+  if(file.size>100*1024*1024)throw new Error("For browser memory safety, choose a file smaller than 100 MB.");
+  if(!globalThis.crypto?.subtle)throw new Error("Secure browser hashing is unavailable. Open the site over HTTPS in a modern browser.");
+  const bytes=await file.arrayBuffer(),algorithms=["SHA-1","SHA-256","SHA-512"],rows=[];
+  for(const algorithm of algorithms){
+    const digest=await crypto.subtle.digest(algorithm,bytes);
+    const hex=[...new Uint8Array(digest)].map(byte=>byte.toString(16).padStart(2,"0")).join("");
+    rows.push([algorithm,hex]);
+  }
+  return `<section class="panel solo"><h2>File fingerprints</h2><p class="note">Calculated locally. The file was not uploaded. These hashes identify file contents; they do not determine whether a file is safe.</p>${dl([["Name",esc(file.name)],["Size",`${file.size.toLocaleString()} bytes`],["Type",esc(file.type||"Unknown")],["Modified",file.lastModified?esc(fmtT(file.lastModified)):"Unknown"]])}<div class="scroll"><table><thead><tr><th>Algorithm</th><th>Fingerprint</th><th></th></tr></thead><tbody>${rows.map(([name,hash])=>`<tr><td>${name}</td><td><code>${hash}</code></td><td><button type="button" class="mini" data-copy="${hash}">Copy</button></td></tr>`).join("")}</tbody></table></div></section>`;
+}
